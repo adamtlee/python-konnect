@@ -12,7 +12,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Contact',
+            name='Athlete',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('first_name', models.CharField(max_length=100)),
@@ -22,8 +22,8 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'verbose_name': 'Contact',
-                'verbose_name_plural': 'Contacts',
+                'verbose_name': 'Athlete',
+                'verbose_name_plural': 'Athletes',
                 'ordering': ['-created_at'],
             },
         ),
