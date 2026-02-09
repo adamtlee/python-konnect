@@ -11,57 +11,79 @@ class OneFCAthletesSpider(Spider):
     name = 'onefc_athletes'
     start_urls = ['https://www.onefc.com/athletes/weight-class/flyweight/']
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, max_athletes=4, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.html_content = None
+        self.max_athletes = max_athletes
 
     def parse(self, response):
-        """Parse the response and extract information."""
-        self.logger.info(f'Successfully fetched: {response.url}')
+        """Parse the main page and extract athlete links."""
+        self.logger.info(f'Successfully fetched main page: {response.url}')
         self.logger.info(f'Response status: {response.status}')
-        self.logger.info(f'Page title: {response.css("title::text").get()}')
         
-        # Store HTML content
-        self.html_content = response.text
+        # Extract athlete cards
+        athlete_cards = response.css('div.simple-post-card.is-athlete')
         
-        # Output HTML to console
+        # Extract names and links from each card
+        athletes_data = []
+        for card in athlete_cards:
+            # Extract name from h3 tag
+            name = card.css('h3::text').get()
+            # Extract link
+            link = card.css('a::attr(href)').get()
+            
+            if name and link and '/athletes/' in link:
+                # Clean up name (strip whitespace)
+                name = name.strip()
+                # Make link absolute if needed
+                if not link.startswith('http'):
+                    link = response.urljoin(link)
+                
+                athletes_data.append({'name': name, 'link': link})
+        
+        # Remove duplicates based on link while preserving order
+        seen_links = set()
+        unique_athletes = []
+        for athlete in athletes_data:
+            if athlete['link'] not in seen_links:
+                seen_links.add(athlete['link'])
+                unique_athletes.append(athlete)
+        
+        # Take only the first N unique athletes
+        first_athletes = unique_athletes[:self.max_athletes]
+        
+        # Print athlete names to console
         print("\n" + "="*80)
-        print("HTML CONTENT:")
+        print(f"FIRST {len(first_athletes)} ATHLETES:")
         print("="*80)
-        print(self.html_content)
+        for idx, athlete in enumerate(first_athletes, 1):
+            print(f"{idx}. {athlete['name']}")
         print("="*80 + "\n")
         
-        # You can add parsing logic here to extract athlete data
-        # For example:
-        # athletes = response.css('.athlete-card')
-        # for athlete in athletes:
-        #     yield {
-        #         'name': athlete.css('.name::text').get(),
-        #         'country': athlete.css('.country::text').get(),
-        #     }
-        
-        return {
-            'url': response.url,
-            'status': response.status,
-            'title': response.css('title::text').get(),
-        }
+        self.logger.info(f'Found {len(first_athletes)} athletes on the page')
 
 
 class Command(BaseCommand):
-    help = 'Fetches the ONE Championship flyweight athletes page using Scrapy'
+    help = 'Prints the first 4 athletes from ONE Championship flyweight page using Scrapy'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--open-browser',
             action='store_true',
-            help='Also open the page in the default browser',
+            help='Also open the main page in the default browser',
+        )
+        parser.add_argument(
+            '--count',
+            type=int,
+            default=4,
+            help='Number of athletes to fetch (default: 4)',
         )
 
     def handle(self, *args, **options):
         url = 'https://www.onefc.com/athletes/weight-class/flyweight/'
+        athlete_count = options.get('count', 4)
         
         self.stdout.write(
-            self.style.SUCCESS(f'Fetching page with Scrapy: {url}')
+            self.style.SUCCESS(f'Fetching page to find first {athlete_count} athletes: {url}')
         )
         
         try:
@@ -71,17 +93,15 @@ class Command(BaseCommand):
                 'LOG_LEVEL': 'WARNING',  # Reduce log noise since we're printing HTML
             })
             
-            # Add the spider to the process (Scrapy will instantiate it)
-            process.crawl(OneFCAthletesSpider)
+            # Add the spider to the process with max_athletes parameter
+            process.crawl(OneFCAthletesSpider, max_athletes=athlete_count)
             
             # Start the crawling process
             process.start()
             
             self.stdout.write(
-                self.style.SUCCESS('Page fetched successfully with Scrapy!')
+                self.style.SUCCESS(f'Successfully found {athlete_count} athletes on the page!')
             )
-            
-            # HTML has already been printed in the parse method
             
             # Optionally open in browser if requested
             if options['open_browser']:
