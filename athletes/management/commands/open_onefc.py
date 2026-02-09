@@ -11,9 +11,9 @@ class OneFCAthletesSpider(Spider):
     name = 'onefc_athletes'
     start_urls = ['https://www.onefc.com/athletes/weight-class/flyweight/']
     
-    def __init__(self, max_athletes=4, *args, **kwargs):
+    def __init__(self, max_athletes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.max_athletes = max_athletes
+        self.max_athletes = max_athletes  # None means get all athletes
 
     def parse(self, response):
         """Parse the main page and extract athlete links."""
@@ -48,22 +48,25 @@ class OneFCAthletesSpider(Spider):
                 seen_links.add(athlete['link'])
                 unique_athletes.append(athlete)
         
-        # Take only the first N unique athletes
-        first_athletes = unique_athletes[:self.max_athletes]
+        # Take only the first N unique athletes if limit is set, otherwise get all
+        if self.max_athletes is not None:
+            athletes_to_print = unique_athletes[:self.max_athletes]
+        else:
+            athletes_to_print = unique_athletes
         
         # Print athlete names to console
         print("\n" + "="*80)
-        print(f"FIRST {len(first_athletes)} ATHLETES:")
+        print(f"ALL ATHLETES FOUND ({len(athletes_to_print)} total):")
         print("="*80)
-        for idx, athlete in enumerate(first_athletes, 1):
+        for idx, athlete in enumerate(athletes_to_print, 1):
             print(f"{idx}. {athlete['name']}")
         print("="*80 + "\n")
         
-        self.logger.info(f'Found {len(first_athletes)} athletes on the page')
+        self.logger.info(f'Found {len(athletes_to_print)} athletes on the page')
 
 
 class Command(BaseCommand):
-    help = 'Prints the first 4 athletes from ONE Championship flyweight page using Scrapy'
+    help = 'Scrapes all athletes from ONE Championship flyweight page using Scrapy'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -74,17 +77,22 @@ class Command(BaseCommand):
         parser.add_argument(
             '--count',
             type=int,
-            default=4,
-            help='Number of athletes to fetch (default: 4)',
+            default=None,
+            help='Limit number of athletes to fetch (default: all athletes)',
         )
 
     def handle(self, *args, **options):
         url = 'https://www.onefc.com/athletes/weight-class/flyweight/'
-        athlete_count = options.get('count', 4)
+        athlete_count = options.get('count', None)
         
-        self.stdout.write(
-            self.style.SUCCESS(f'Fetching page to find first {athlete_count} athletes: {url}')
-        )
+        if athlete_count:
+            self.stdout.write(
+                self.style.SUCCESS(f'Fetching page to find first {athlete_count} athletes: {url}')
+            )
+        else:
+            self.stdout.write(
+                self.style.SUCCESS(f'Fetching page to scrape all athletes: {url}')
+            )
         
         try:
             # Configure Scrapy settings
@@ -99,9 +107,14 @@ class Command(BaseCommand):
             # Start the crawling process
             process.start()
             
-            self.stdout.write(
-                self.style.SUCCESS(f'Successfully found {athlete_count} athletes on the page!')
-            )
+            if athlete_count:
+                self.stdout.write(
+                    self.style.SUCCESS(f'Successfully found {athlete_count} athletes on the page!')
+                )
+            else:
+                self.stdout.write(
+                    self.style.SUCCESS('Successfully scraped all athletes from the page!')
+                )
             
             # Optionally open in browser if requested
             if options['open_browser']:
